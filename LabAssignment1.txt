@@ -1,0 +1,403 @@
+Lab Assignment 1
+Overview
+Welcome to the first lab assignment for Neural Networks and Deep Learning! Please be
+sure to read this document in its entirety. In this assignment, we will first study
+the limits of the perceptron model, then overcome those limits with multi-layer neural
+networks. A variety of synthetic datasets will be used to understand these architectures.
+This assignment is worth 50 points distributed across 3 parts, and an extra credit
+opportunity is provided which is worth 5 points.
+Submission Instructions
+Your submission must include two parts submitted as a single .pdf file:
+1. A lab report: Requirements for the report deliverables are provided throughout
+this lab manual and highlighted in blue. The report should be about 3-5 pages
+long, but you may exceed this page limit if desired.
+2. Appendix with your code: All your code must be copy-pasted as plain text
+into the appendix. Submissions of code screenshots will result in a penalty to your
+grade.
+Part 1: Limits of the Perceptron [15 Points]
+The Perceptron Model
+Introduced in 1957 by Frank Rosenblatt, the perceptron is one of the simplest machine
+learning architectures. It consists of a learnable affine transformation and a discrete
+sign activation. Concretely, given an input vector x and a weight vector w each with
+d-dimensions, the inference rule (i.e., forward pass) of the perceptron is given as follows:
+ˆy = sign(⟨w, x⟩ + b) (1)
+where ⟨·, ·⟩ denotes the dot-product, and b ∈ R is a learnable bias term. sign(·) returns
+1 when the input is non-negative and 0 otherwise.
+Learning Perceptron Models
+For the perceptron architecture to be useful, we must understand how to learn the pa-
+rameters w and b. This is accomplished with an iterative update rule. Concretely, given
+a predicted output ˆy, ground truth output y, and a learning rate η, the update rule is
+given by:
+∆ˆy ← ˆy − y
+w ← w − η∆ˆyx
+b ← b − η∆ˆy
+(2)
+1
+Constructing Datasets [5 Points]
+To investigate the effectiveness of the perceptron, we require labeled training data. Your
+first task of this lab is to build two synthetic datasets. Both consist of points in 2-
+dimensional Euclidean space with associated binary labels. The first is linearly separable
+about the line y = x, and the second is the (in)famous XOR problem.
+Dataset 1: Linear Boundary [2.5 Points]
+To begin, create all 2-dimensional points of the form (x1, x2) where x1, x2 each come
+from the set S = {−1.0, −0.5, 0.0, 0.5, 1.0}. Specifically, create all 25 2-d points with
+coordinates from S. Store the created points in a PyTorch tensor of shape 25 × 2. To
+create the labels, first initialize a PyTorch tensor of shape 25 × 1. Populate the elements
+of this tensor with values 0 or 1 depending on if the corresponding 2-d point is above the
+line y = x. Concretely, assign labels according to the following rule:
+label(x1, x2) =
+(
+1, x2 > x1
+0, x2 ≤ x1
+(3)
+Dataset 2: XOR Problem [2.5 Points]
+This dataset consists of only 4 points, and is described in the following table:
+x1 x2 Label
+1 1 0
+1 −1 1
+−1 −1 0
+−1 1 1
+Such data is known as the XOR problem because points are labeled with 1 only when
+exactly one of the input coordinates is equal to 1. Store the inputs in a tensor of shape
+4 × 2 and the labels in a tensor of shape 4 × 1.
+Deliverables
+For both datasets, provide a scatter plot of all the samples. Color code the scattered
+points according to the labels: red for a label of 0, and blue for a label for 1. The plots
+should be well-formatted, include a legend, and be generally easy to understand.
+Training Perceptron [7.5 Points]
+Your next task is to train perceptron models on the datasets created in the previous
+section. You can accomplish this in three steps:
+• Create and initialize tensors for the model parameters.
+• Implement the forward pass, i.e., inference rule, using eq. (1).
+• Implement the backward pass, i.e., parameter update step, using eq. (2).
+2
+Note that you are NOT PERMITTED TO USE AUTOGRAD or any other au-
+tomatic differentiation packages; you must implement the forward and backward passes
+yourself using only tensor objects and basic arithmetical operations.
+Hints:
+• Be sure to keep track of the parameter tensors to ensure the weights get updated
+properly. Creating a python class can help with this.
+• Keep track of the inputs x, as they are required by the backward pass computations.
+• Setup your codebase in a configurable manner which allows the input dimension of
+the perceptron model to be easily changed. This will be useful in the later parts of
+this lab.
+Train one model for each dataset, ingesting data samples one-at-a-time. Iterate over all
+the samples 100 times, i.e., train for 100 epochs. Use a learning rate of 0.001 for the
+linearly separable dataset, and a learning rate of 0.1 for the XOR dataset. Initialize
+the bias term to zero, and initialize the weights from a Gaussian distribution with the
+following standard deviation:
+σ = 1
+√d (4)
+where d is the input dimension. You can use the PyTorch function torch.randn() to
+sample a tensor from a Gaussian distribution with unit variance.
+After each epoch, record the model’s accuracy and the angle of decision boundary. For
+this section, accuracy is defined as the percentage of training samples for which the model
+predicts correct labels. The decision boundary is defined as the set of input points for
+which the model outputs a pre-activation score of zero. Concretely, given fixed parameters
+w and b, the decision boundary is the solution set of the equation:
+⟨w, x⟩ + b = 0 (5)
+For a 2-dimensional perceptron, the angle of the decision boundary can be computed as
+follows:
+θ = arctan
+w2
+w1
+
++ π
+2 (6)
+Equation (6) computes the angle of the line in 2-d space on which the dot-product term
+in the perceptron inference rule is equal to zero. Analyzing this angle can provide insight
+into the geometry of the learned models.
+Deliverables
+1. Before training any models, write a brief paragraph discussing a hypothesis as
+to which dataset will be easier for the perceptron to learn. Justify your thought
+process.
+2. Use the data collected from the training process to provide plots of model accu-
+racy and decision boundary angle vs. epoch number. Display both accuracy and
+boundary angle results on the same plot, and produce one plot per dataset.
+3
+3. For each dataset, overlay the model’s final learned decision boundary on top of the
+color-coded scatter plot of the data points. Recall that the boundary equation is
+given by eq. (5).
+For all plots, include axis labels, a legend, and sufficient information for the reader to
+fully understand the results.
+Analyzing the Perceptron [2.5 Points]
+Analyze the results of the training runs to provide insight into the strengths and weak-
+nesses of the perceptron architecture. Some questions to think about include:
+• Which dataset was easier for the perceptron to learn? Why? Was your original
+hypothesis supported?
+• What trends are observable in the accuracy and boundary angle vs. epoch curves?
+Deliverables
+Include a 1-2 paragraph analysis section in your report. This analysis should discuss at
+least 1 observed trend and minimally answer the two questions above.
+Part 2: Multi-Layer Models [15 Points]
+The Two-Layer Fully Connected Model
+We now extend the perceptron model to two-layer neural networks with differentiable
+activation functions. Such activation functions are necessary in order to implement the
+backpropagation algorithm. Specifically, we consider models of the following form:
+p1 = (w1 ∗ x) + b1
+o1 = σ(p1)
+p2 = ⟨w2, o1⟩ + b2
+ˆy = σ(p2)
+(7)
+where ∗ is matrix-vector product, w1, b1 are the learned parameters for the first layer,
+w2, b2 are the parameters for the second layer, σ(·) is the sigmoid non-linear differentiable
+activation function. Sigmoid is a differentiable version of the sign(·) function used in part
+1. It is defined as follows:
+σ(x) = 1
+1 + e−x (8)
+The derivative of σ(x) is given by:
+dσ(x)
+dx = σ(x) × (1 − σ(x)) (9)
+A graph of the sigmoid function is provided below:
+4
+To implement the two-layer model, it is necessary to specify a hidden dimension, i.e., the
+number of neurons of the hidden layer. Given a hidden dimension dhidden and an input
+dimension dinput, the parameters must be tensors of the following shapes:
+w1 — dhidden × dinput matrix
+b1 — dhidden × 1 vector
+w2 — dhidden × 1 vector
+b2 — scalar
+(10)
+The Backpropagation Algorithm
+Backpropagation, or backprop for short, is a critical component of modern deep learn-
+ing. It extends the gradient descent algorithm to be applicable to arbitrarily complex
+sequences of learned operations, provided those operations are differentiable. Backprop
+relies on the chain rule, which is used to unravel derivatives of function compositions.
+Recall: g(f (x))′ = g′(f (x))f ′(x) (11)
+We can use the chain rule to derive the parameter update equations for the two-layer
+neural network model by working our way through eq. (7) in reverse:
+∆ˆy = ˆy − y
+∆p2 = ∆ˆy × dˆy
+dp2
+= ∆ˆy × σ′(p2)
+∆b2 = ∆p2
+dp2
+db2
+= ∆p2
+∆w2 = ∆p2
+dp2
+dw2
+= ∆p2 × o1
+∆o1 = ∆p2
+dp2
+do1
+= ∆p2 × w2
+∆p1 = ∆o1
+do1
+dp1
+= ∆o1 ⊙ σ′(p1)
+∆b1 = ∆p1
+dp1
+b1
+= ∆p1
+∆w1 = ∆p1
+dp1
+dw1
+= ∆p1 ∗ x
+(12)
+where × is scalar multiplication, ⊙ is the element-wise product, and ∗ is matrix mul-
+tiplication. The derivative f ′(p1) is computed element-wise, and x is interpreted as a
+5
+1 × dinput matrix.
+After all the quantities of eq. (12) are computed, the parameters can be updated analo-
+gously to the perceptron. Concretely, the update rules are:
+bi ← bi − η∆bi
+wi ← wi − η∆wi
+(13)
+Training Two-Layer Networks [10 Points]
+Write a python program to train the two-layer architecture described by eq. (7) and
+eq. (12). Similarly to the perceptron, this can be accomplished in three steps:
+1. Create and initialize parameter tensors for the weights and biases.
+2. Implement the forward pass by converting eq. (7) to tensor operations.
+3. Implement the backward pass using eq. (12) to compute parameter ∆s and eq. (13)
+to update the model’s parameters.
+Use the sigmoid function for the hidden layer activation. Use a hidden dimension of 2.
+Initialize all bias terms to zero, and all weights from zero mean Gaussian distributions.
+Use a standard deviation of d−1/2
+input for w1 and a standard deviation of d−1/2
+hidden for w2, where
+dinput is the input dimension, dhidden is the hidden layer dimension, and d−1/2 = 1√d . Pro-
+cess the samples one-at-a-time with a learning rate of η = 0.1 for 1000 epochs. Record
+only the model’s accuracy after each epoch.
+Hints:
+• All hints from the perceptron section also apply here.
+• In addition to keeping track of the input x, be sure to keep track of the intermediate
+features – i.e., values from the hidden layer – as these are also required to compute
+the parameter update values.
+• Be sure to store both pre-activation and post-activation features. Both are necessary
+for the backward pass computations.
+Train 10 different instances of the two-layer model for each dataset to measure how
+often the random initialization of weights results in successful learning. When learning is
+successful, your implementation should achieve perfect accuracy (100%) on both datasets.
+Deliverables
+1. Report the number of times (out of 10 attempts) the two-layer model achieved
+perfect accuracy on each dataset.
+2. Provide plots of model accuracy vs. epoch number, one per dataset. Use the
+best performing instance of the 10 randomly initialized training runs. If multiple
+instances achieved perfect accuracy, use the instance which attained 100% accuracy
+the fastest, i.e., reached 100% accuracy in the fewest number of epochs.
+6
+3. Provide a visualization of the model’s learned decision boundary for each dataset.
+You can achieve this by sampling the trained model, since multi-layer neural net-
+works do not provide convenient analytical solutions for their boundaries (in con-
+trast to perceptrons). Specifically, generate a grid of 400 test points spaced evenly
+on the square with vertices at (±1, ±1) and collect the trained model’s predictions
+on each point. Then, color-code each point according to the model’s prediction
+(blue for 1, red for 0) and provide a scatter plot.
+Analyzing the Two-Layer Models [5 Points]
+Analyze the results of training the two-layer models. Some questions to think about
+include:
+• How does the decision boundary learned by the two-layer model compare to that
+of the perceptron on the XOR dataset?
+• What trends are observable in the training curves? What insight do they provide?
+• How quickly (measured in number of epochs) did the two-layer models converge to
+its final solution compared to the perceptron?
+Deliverables
+Include a 1-2 paragraph analysis section in your report. This analysis should discuss at
+least 1 observed trend and minimally answer the three questions above.
+Part 3: Harder Datasets [20 Points]
+Noisy XOR [10 Points]
+Real world datasets are often noisy due to imperfect data and labeling errors. It is there-
+fore useful to study the effects of dataset noise on learning algorithms. In this section,
+we will modify the XOR dataset in a controlled manner to better understand this question.
+To start, create an expanded version of the XOR dataset by copying each sample 10
+times, keeping the labels the same. This will result in a dataset with 40 (redundant)
+samples. Next, corrupt the input samples with zero-mean Gaussian noise by adding
+randomly generated offsets to each point as follows:
+Xnoisy = X + N , N ∼ N (0, r) (14)
+where r is the standard deviation. The torch.randn_like() function may be helpful
+here. Create 3 versions of the noisy XOR dataset, one for each of r = 0.25, r = 0.5, and
+r = 0.75. Save each dataset before continuing.
+Using the same learning rate and number of epochs as in part 2, train 100 different
+instances of the two-layer model on each noisy XOR dataset. Save the learned parameters
+and final accuracy scores from each training run.
+7
+Deliverables
+1. Before training any models, provide a hypothesis on which dataset will be the most
+challenging to learn. Justify your thought process.
+2. Provide color-coded scatter plots of each version of the noisy XOR dataset.
+3. Provide a box-and-whisker plot comparing the final accuracy of the models on the
+noisy XOR datasets.
+4. Using the technique developed in part 2, provide visualizations of the top performing
+model’s decision boundary on each dataset.
+5. Provide 1-2 paragraphs of analysis and discussion surrounding the following topics:
+(a) Which dataset was the hardest for the models to learn? Was your original
+hypothesis supported?
+(b) How do the decision boundaries compare to those learned from the original
+XOR dataset?
+Higher Dimensional Parity [10 Points]
+Most modern deep learning datasets involve high dimensional data. In this section, we
+investigate the influence of data dimensionality on the two-layer model. We will accom-
+plish this by extending a fixed labeling rule to various dimensions.
+The 2-d XOR dataset constructed in part 1 is a special case of the parity labeling rule.
+The rule is simple: label a point with 1 if it contains an odd number of −1 coordinate
+entries, and label it 0 otherwise. This happens to coincide with the labels for 2-d XOR,
+and is easily extensible to higher dimensional data.
+Create three datasets based on the parity labeling rule, one for each of dinput = 4,
+dinput = 6, dinput = 8. Each dataset should include all the vertices of a hypercube of
+the corresponding dimension with all coordinates at either +1 or −1. This will result in
+24 = 16, 26 = 64, and 28 = 256 samples, respectively.
+Train two versions of the two-layer model on each dataset. The first version should have a
+hidden dimension equal to the input dimension, e.g., 6 hidden neurons for the 6-d parity
+dataset. The second version should only have 2 hidden neurons for each dataset, the
+same as the original 2-d models used in part 2. Use the same learning rate and number
+of epochs as in part 2, and record the accuracy vs. epoch curves for each model.
+Deliverables
+1. Before training any models, provide a hypothesis on which version of the two-layer
+architecture will perform the best. Justify your thought process.
+2. Provide plots of model accuracy vs. epoch for each dataset. Display the training
+curves for both model versions on the same plot, i.e., you should have 3 plots total
+with 2 curves per plot.
+8
+3. Provide plots of model accuracy vs. epoch for each model version. Display the
+training curves for each dataset on the same plot, i.e., you should have 2 plots total
+with 3 curves per plot.
+4. Provide 1-2 paragraphs of analysis and discussion surrounding the following topics:
+(a) Which version of the two-layer architecture performed best? Was your original
+hypothesis supported?
+(b) Which dataset was the hardest for the models to learn? Why?
+(c) Which independent variable had a greater effect on accuracy: data dimension
+or number of hidden units? Why?
+General Instructions for Deliverables
+Code
+Submit all code written for this assignment as plain-text in an appendix at the end of
+your report. Screenshots of code, .zip files, and any other form of code submission will
+result in a penalty to your grade on this assignment.
+Plots
+All submitted plots must be legible and easy to understand, providing legends, axis labels,
+titles, and captions where applicable. The figures should contain all information for an
+outside reader to understand your results in full detail. There should be zero ambiguity
+about what data your results are trying to convey. Poorly formatted figures are subject
+to loss of credit.
+Analysis
+All analysis and discussion sections of your report should discuss what you learned from
+your experiments. This should be more than a superficial reiteration of what can be
+observed in your results. Do NOT simply state what the results are, rather discuss what
+the results say. What trends did you observe from the experiments? Was your original
+hypothesis supported or refuted? As an example, consider the fictional results of table 1.
+It would be insufficient to say “Model 1 achieves 50%, 45%, while Model 2 achieves 55%,
+57%.” A better analysis would be: “Model 2 always outperforms Model 1, but exhibits
+different behavior with respect to the activation function used. Model 1 performs better
+with Leaky ReLU whereas Model 2 performs better with ReLU.”
+Model Activation Accuracy
+Model 1 Leaky 50%
+Model 1 ReLU 45%
+Model 2 Leaky 55%
+Model 2 ReLU 57%
+Table 1: Example data for analysis.
+9
+Collaboration versus Academic Misconduct
+Collaboration with other students (or AI) is permitted, but the work you submit must be
+your own. Copying/plagiarizing work from another student (or AI) is not permitted and
+is considered academic misconduct. For more information about University of Colorado
+Boulder’s Honor Code and academic misconduct, please visit the course syllabus.
+Extra Credit: The Importance of Initialization [5 Points]
+In this extra credit assignment, we study how convergence speed suffers when the param-
+eters are not initialized properly. We will use the two-layer model and linearly separable
+dataset to investigate this question. All models in this section should be trained with a
+learning rate of η = 0.1 for 500 epochs.
+To start, train 100 instances of the two-layer model on the linearly separable dataset and
+collect the convergence times. Here, convergence time is defined as the first epoch after
+which the model attains 100% accuracy. Use the baseline parameter initialization scheme
+described in part 2.
+Next, modify the initialization of the weight tensors w1 and w2 by sampling from a
+uniform distribution instead of a Gaussian distribution. Use the following ranges for the
+uniform distributions:
+w1 ∼ U
+ −1
+10pdinput
+, 1
+10pdinput
+
+w2 ∼ U
+ −1
+10√dhidden
+, 1
+10√dhidden
+ (15)
+As with the baseline initialization scheme, set all bias terms to zero. Train 100 instances
+of the two-layer model on the linearly separable dataset with the uniform distribution
+initialization and record the convergence times. The torch.rand() function may be use-
+ful here.
+Finally, modify the initialization of the weight tensors w1 and w2 by setting all entries
+to 1.0. Set all bias terms to zero. As there is no randomness in this initialization scheme,
+you only need to train a single instance of the model to collect the convergence time.
+Deliverables
+1. Before training any models, provide a hypothesis on which initialization scheme will
+result in the fastest convergence times. Justify your thought process.
+2. Provide a box-and-whisker plot showing the convergence time statistics of the ran-
+dom sampling initialization schemes. Indicate the convergence time of the constant
+initialization scheme on the same figure.
+3. Provide 1-2 paragraphs of analysis and discussion surrounding the following topics:
+(a) Which initialization scheme produced the fastest average convergence times?
+Was your original hypothesis supported?
+10
+(b) Which initialization scheme produced the most consistent – i.e., least variance
+away from the mean – convergence times? Why?
+4. After analyzing the results, design handcrafted initialization values for the two-
+layer model weights with the goal of maximizing convergence time. You may
+adopt either an analytical approach, or an empirical “trial-and-error” approach.
+The only constraint is that no individual weight value may exceed an absolute
+value of 1. Keep all bias terms initialized to zero. Report the values you create
+and the associated convergence time along with a brief explanation of how you
+approached the problem.
