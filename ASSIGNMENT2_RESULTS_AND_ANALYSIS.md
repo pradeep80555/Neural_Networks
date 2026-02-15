@@ -1985,23 +1985,17 @@ Final: 71.18% test accuracy
 - ✅ Part 2, Step 4: 5-layer CNN with Leaky ReLU + Tanh (65.24% test accuracy, batch_size=1, 29.9 min)
 - ✅ Part 2, Step 5: Mini-Batch SGD with batch_size=32 (58.86% test accuracy, 2.8 min, 10.7× speedup)
 - ✅ Part 2, Step 6: SGD with Momentum (α=0.9, 74.02% test accuracy, +15.16% improvement!)
+- ✅ Part 3: Deep 15-layer networks with skip connections (Config 2: 73.66% test accuracy)
 
 **Remaining Work:**
 
-1. **Part 3: Extend to 15 Layers + Skip Connections**
-   - Build deeper network (15 parameterized layers)
-   - Add residual connections to prevent degradation
-   - Test multiple skip connection configurations
-   - Show that skip connections enable training very deep networks
-   - Expected: Further improvement over 5-layer network
-
-2. **Extra Credit: Weight Decay**
+1. **Extra Credit: Weight Decay**
    - Implement L2 regularization
    - Compare regularized vs unregularized models
    - Test different weight decay coefficients (e.g., 1e-4, 1e-3, 1e-2)
    - Expected: Better generalization, reduced train-test gap
 
-3. **Final Report Writing**
+2. **Final Report Writing**
    - Compile methods, results, and analysis sections
    - Create visualizations (training curves, comparison plots)
    - Write conclusions and discussion
@@ -2010,7 +2004,456 @@ Final: 71.18% test accuracy
 
 ---
 
-*Document Last Updated: February 15, 2026*  
-*Part 2, Step 6 Complete - Momentum Optimization Implemented and Analyzed*  
-*Current Best Result: 74.02% test accuracy with α=0.9 momentum*  
-*Ready for Part 3: Deep Networks with Skip Connections*
+# PART 3: DEEP NETWORKS WITH SKIP CONNECTIONS
+
+## Objective
+
+Demonstrate the **degradation problem** in deep plain networks and show how **skip connections** (residual learning) enable training of very deep neural networks by providing gradient highways.
+
+**Research Question:** Does adding more layers always improve performance? What happens when we extend from 5 to 15 layers?
+
+## Methodology
+
+### Extended Architecture: 15-Layer CNN
+
+Starting from the 5-layer CNN (2 conv + 3 FC = 5 parameterized layers), we added 10 more layers to create a 15-layer deep CNN:
+
+**Architecture Design:**
+```
+Input: 32×32×3 CIFAR-10 images
+
+Block 1 (4 conv layers):
+  - Conv 3→16 (3×3 kernel, stride=1, padding=1)
+  - Conv 16→16 (3×3 kernel, stride=1, padding=1)  
+  - Conv 16→16 (3×3 kernel, stride=1, padding=1)
+  - Conv 16→16 (3×3 kernel, stride=1, padding=1)
+  - Leaky ReLU after each conv
+  - MaxPool 2×2 → Output: 16×16×16
+
+Block 2 (4 conv layers):
+  - Conv 16→32 (3×3 kernel, stride=1, padding=1)
+  - Conv 32→32 (3×3 kernel, stride=1, padding=1)
+  - Conv 32→32 (3×3 kernel, stride=1, padding=1)
+  - Conv 32→32 (3×3 kernel, stride=1, padding=1)
+  - Leaky ReLU after each conv
+  - MaxPool 2×2 → Output: 8×8×32
+
+Block 3 (4 conv layers):
+  - Conv 32→64 (3×3 kernel, stride=1, padding=1)
+  - Conv 64→64 (3×3 kernel, stride=1, padding=1)
+  - Conv 64→64 (3×3 kernel, stride=1, padding=1)
+  - Conv 64→64 (3×3 kernel, stride=1, padding=1)
+  - Leaky ReLU after each conv
+  - MaxPool 2×2 → Output: 4×4×64
+
+Block 4 (3 FC layers):
+  - Flatten → 1024 features
+  - FC 1024→256 + Tanh
+  - FC 256→256 + Tanh
+  - FC 256→10 (output logits)
+
+Total: 15 parameterized layers (12 conv + 3 FC)
+Total parameters: 499,834
+```
+
+### Three Experimental Configurations
+
+To isolate the effect of skip connections, we trained **three identical 15-layer architectures** with different skip connection strategies:
+
+#### Configuration 0: No Skip Connections (Baseline)
+- Plain feedforward network
+- No residual connections
+- Purpose: Demonstrate degradation problem
+- Expected: Poor performance due to vanishing gradients
+
+#### Configuration 1: Short Skip Connections
+- **3 skip connections**, all length 1 (skip over 1 layer)
+- Skip 1: conv1 output → conv2 output
+  - Formula: `y = x ⊕ f(x)` where f(x) is conv2(relu(conv1(x)))
+- Skip 2: conv5 output → conv6 output  
+  - Formula: `y = x ⊕ f(x)` where f(x) is conv6(relu(conv5(x)))
+- Skip 3: conv9 output → conv10 output
+  - Formula: `y = x ⊕ f(x)` where f(x) is conv10(relu(conv9(x)))
+- Strategy: **Frequent, short gradient pathways** (ResNet-style)
+- Purpose: Test if many short skips help gradient flow
+
+#### Configuration 2: Longer Skip Connections
+- **3 skip connections**, lengths 2-3 (skip over 2-3 layers)
+- Skip 1: conv1 output → conv3 output (length 2)
+  - Formula: `y = x ⊕ g(f(x))` where g(f(x)) is conv3(relu(conv2(relu(conv1(x)))))
+- Skip 2: conv5 output → conv8 output (length 3)
+  - Formula: `y = x ⊕ h(g(f(x)))` where h(g(f(x))) passes through conv6→conv7→conv8
+- Skip 3: conv9 output → conv12 output (length 3)
+  - Formula: `y = x ⊕ h(g(f(x)))` where h(g(f(x))) passes through conv10→conv11→conv12
+- Strategy: **Sparser, longer gradient pathways**
+- Purpose: Test if deeper skips provide stronger gradient flow
+
+### Training Configuration
+
+All three models were trained with identical hyperparameters for fair comparison:
+
+```python
+learning_rate = 0.005
+momentum = 0.9
+batch_size = 32
+num_epochs = 10
+optimizer = SGD with Momentum
+loss = Cross-Entropy Loss
+device = MPS (Apple Silicon GPU acceleration)
+```
+
+### Gradient Flow Measurement
+
+To quantify vanishing gradients, we recorded the **average L1-norm** of all gradients during the **first epoch**:
+
+```python
+# During epoch 1
+for batch in train_loader:
+    loss.backward()
+    
+    # Calculate total L1-norm of gradients
+    batch_grad_norm = sum(|∇W| for all parameters W)
+    gradient_norms.append(batch_grad_norm)
+
+# Average over all batches in epoch 1
+avg_gradient_norm = mean(gradient_norms)
+```
+
+**Interpretation:**
+- **Low gradient norm** → Vanishing gradients → Poor learning
+- **High gradient norm** → Strong gradient flow → Better optimization
+
+## Results
+
+### Summary Table
+
+| Model | Test Accuracy | Train Accuracy (final) | Avg Gradient Norm (epoch 1) | Training Time |
+|-------|--------------|----------------------|------------------------|---------------|
+| **5-layer CNN (Part 2 baseline)** | **74.02%** | -- | -- | 2.8 min |
+| **15-layer WITHOUT skip** | **10.00%** | 9.82% | 10.13 | 4.1 min |
+| **15-layer WITH skip - Config 1** | **52.25%** | 48.13% | 20.77 | 4.1 min |
+| **15-layer WITH skip - Config 2** | **73.66%** | 84.58% | 689.55 | 4.1 min |
+
+### Detailed Training Curves
+
+#### No Skip Connections (Catastrophic Failure)
+```
+Epoch  1: Loss=2.3032, Train Acc=10.04%
+Epoch  2: Loss=2.3032, Train Acc= 9.89%
+Epoch  3: Loss=2.3033, Train Acc= 9.83%
+Epoch  4: Loss=2.3030, Train Acc= 9.96%
+Epoch  5: Loss=2.3031, Train Acc= 9.85%
+Epoch  6: Loss=2.3032, Train Acc= 9.89%
+Epoch  7: Loss=2.3032, Train Acc=10.00%
+Epoch  8: Loss=2.3031, Train Acc=10.04%
+Epoch  9: Loss=2.3032, Train Acc= 9.83%
+Epoch 10: Loss=2.3031, Train Acc= 9.82%
+
+Test Accuracy: 10.00%
+Average Gradient Norm: 10.13
+```
+
+**Observations:**
+- Loss stuck at ~2.30 (equivalent to random guessing for 10 classes: -log(1/10) ≈ 2.30)
+- Training accuracy ~10% (random baseline for 10 classes)
+- **Complete optimization failure** - network learned nothing
+- Gradient norm = 10.13 (very weak gradients)
+
+#### Config 1: Short Skip Connections (Slow Learning)
+```
+Epoch  1: Loss=2.3033, Train Acc= 9.91%
+Epoch  2: Loss=2.3034, Train Acc= 9.97%
+Epoch  3: Loss=2.3032, Train Acc= 9.85%
+Epoch  4: Loss=2.3033, Train Acc= 9.65%
+Epoch  5: Loss=2.3030, Train Acc= 9.99%
+Epoch  6: Loss=2.3032, Train Acc= 9.97%
+Epoch  7: Loss=2.3031, Train Acc=10.05%
+Epoch  8: Loss=2.2541, Train Acc=12.93%  ← Breakthrough!
+Epoch  9: Loss=1.7157, Train Acc=36.69%  ← Rapid improvement
+Epoch 10: Loss=1.4211, Train Acc=48.13%
+
+Test Accuracy: 52.25%
+Average Gradient Norm: 20.77
+```
+
+**Observations:**
+- Stuck at random performance for epochs 1-7
+- Breakthrough in epoch 8, then rapid improvement
+- Skip connections eventually enabled learning
+- Gradient norm = 20.77 (2× improvement over no skip)
+- Still struggled significantly compared to Config 2
+
+#### Config 2: Longer Skip Connections (Smooth Learning)
+```
+Epoch  1: Loss=1.9009, Train Acc=29.29%  ← Immediate learning!
+Epoch  2: Loss=1.3514, Train Acc=50.76%
+Epoch  3: Loss=1.0819, Train Acc=61.14%
+Epoch  4: Loss=0.8992, Train Acc=68.12%
+Epoch  5: Loss=0.7675, Train Acc=73.05%
+Epoch  6: Loss=0.6709, Train Acc=76.49%
+Epoch  7: Loss=0.5972, Train Acc=78.81%
+Epoch  8: Loss=0.5362, Train Acc=81.20%
+Epoch  9: Loss=0.4830, Train Acc=83.02%
+Epoch 10: Loss=0.4352, Train Acc=84.58%
+
+Test Accuracy: 73.66%
+Average Gradient Norm: 689.55
+```
+
+**Observations:**
+- **Immediate learning** from epoch 1 (29.29% → far above random)
+- Smooth, monotonic improvement every epoch
+- Final performance nearly matches 5-layer baseline (73.66% vs 74.02%)
+- Gradient norm = 689.55 (**68× improvement over no skip!**)
+- This demonstrates that longer skips provide stronger gradient highways
+
+### Gradient Flow Analysis
+
+The gradient L1-norms tell the story of why each configuration behaved as it did:
+
+| Model | Avg Gradient Norm | Ratio vs No Skip |
+|-------|------------------|------------------|
+| No skip connections | 10.13 | 1.00× (baseline) |
+| Config 1 (short skips) | 20.77 | 2.05× stronger |
+| Config 2 (longer skips) | 689.55 | **68.09× stronger** |
+
+**Key Insights:**
+1. **Without skip connections**: Gradients diminished drastically after backpropagating through 15 layers
+2. **Short skips (Config 1)**: Doubled gradient strength but still insufficient for early learning
+3. **Longer skips (Config 2)**: Provided massive gradient boost (68×), enabling immediate learning
+
+**Why Config 2 was so effective:**
+- Longer skips (length 2-3) create **direct gradient pathways** from loss to early layers
+- Each skip bypasses multiple nonlinear transformations (conv + ReLU layers)
+- Gradients can flow backward through shortcuts without repeated multiplication by small derivatives
+- Result: Early layers receive strong gradient signals and can learn effectively
+
+## Analysis
+
+### 1. The Degradation Problem
+
+**Definition:** When adding more layers to a deep plain network **hurts** performance, even though the deeper network could theoretically learn the identity mapping and match the shallower network.
+
+**Evidence from our experiment:**
+```
+5-layer CNN:     74.02% test accuracy
+15-layer no skip: 10.00% test accuracy
+Degradation:     -64.02% performance drop
+```
+
+**This is NOT overfitting:**
+- Training accuracy also ~10% (matches test accuracy)
+- If it were overfitting, we'd see high training accuracy but low test accuracy
+- This is an **optimization failure** - the network couldn't learn anything useful
+
+**Root cause: Vanishing Gradients**
+- Gradients must backpropagate through 15 layers
+- Each layer multiplies gradients by ∂activation/∂input
+- For Leaky ReLU: ∂ReLU/∂x = 1 if x>0, else 0.01
+- Even with slope 1 in positive region, repeated multiplications through weight matrices cause gradient decay
+- By the time gradients reach early layers, they're too small to cause meaningful weight updates
+- Result: Early layers remain random, network can't extract features
+
+### 2. Skip Connections Solve Degradation
+
+**How skip connections work:**
+```
+Traditional: y = f(x)
+With skip:   y = x + f(x)  (element-wise addition)
+
+Backward pass:
+  ∂Loss/∂x = ∂Loss/∂y * ∂y/∂x
+           = ∂Loss/∂y * (1 + ∂f/∂x)
+```
+
+**Key insight:** The `1` term provides a **direct gradient pathway**!
+- Even if ∂f/∂x vanishes, gradients can flow through the identity connection
+- Skip connections create "gradient highways" that bypass multiple layers
+- Deeper residual functions f(x) are easier to optimize than H(x) directly
+
+**Evidence:**
+```
+Config 1 (short skips):  52.25% (+42.25% vs no skip)
+Config 2 (longer skips): 73.66% (+63.66% vs no skip)
+```
+
+Both configurations dramatically improved over plain network, proving skip connections enable deep network training.
+
+### 3. Configuration Comparison: Why Config 2 Won
+
+**Config 1 (Short, Frequent Skips):**
+- 3 skips, each length 1
+- Inspired by ResNet architecture
+- Result: 52.25% test accuracy
+- Gradient norm: 20.77 (2× improvement)
+- Problem: Still struggled for 7 epochs before breakthrough
+
+**Config 2 (Longer, Sparser Skips):**
+- 3 skips, lengths 2-3
+- Creates deeper gradient shortcuts
+- Result: 73.66% test accuracy (**+21.41% better than Config 1!**)
+- Gradient norm: 689.55 (68× improvement!)
+- Advantage: Immediate learning from epoch 1
+
+**Why longer skips were more effective:**
+
+1. **Stronger gradient flow:**
+   - Config 1 skip: x → f(x) → x+f(x) (bypasses 1 layer)
+   - Config 2 skip: x → f(x) → g(f(x)) → x+g(f(x)) (bypasses 2-3 layers)
+   - Longer skips bypass more nonlinear transformations
+   - Result: Gradients preserve more magnitude when reaching early layers
+
+2. **More effective identity learning:**
+   - With longer skips, if intermediate layers aren't helpful, they can learn near-zero functions
+   - The skip connection then dominates, effectively creating a shallower network
+   - Network has flexibility to use depth only when beneficial
+
+3. **Better feature reuse:**
+   - Longer skips connect earlier features to later layers
+   - Enables multi-scale feature fusion
+   - Early low-level features can be combined with later high-level features
+
+**Trade-offs:**
+- Config 1 might work better with more epochs (breakthrough at epoch 8 suggests potential)
+- Config 2's stronger gradients could risk instability with higher learning rates
+- For this specific architecture and training setup, Config 2 was clearly superior
+
+### 4. Comparison with 5-Layer Baseline
+
+**Final results:**
+```
+5-layer CNN:          74.02%
+15-layer Config 2:    73.66% (-0.36%)
+15-layer Config 1:    52.25% (-21.77%)
+15-layer no skip:     10.00% (-64.02%)
+```
+
+**Config 2 nearly matched the shallow baseline!**
+
+**Significance:**
+- Successfully trained a **3× deeper network** to competitive performance
+- With more epochs or hyperparameter tuning, Config 2 could potentially exceed 5-layer
+- Demonstrates that skip connections enable scaling to depth
+
+**Why didn't Config 2 beat the 5-layer network?**
+
+Possible reasons:
+1. **Training time:** Only 10 epochs - Config 2 was still improving (84.58% train acc suggests more capacity)
+2. **Regularization:** Deeper network prone to overfitting (12.92% gap vs 5-layer's ~0-5% gap)
+3. **Architecture:** May need better design (e.g., batch norm, dropout, more skip connections)
+4. **Hyperparameters:** Learning rate 0.005 may be suboptimal for 15-layer network
+5. **Optimization:** Config 2 showed smooth progress - likely would improve with more training
+
+**The key achievement:** Skip connections solved the degradation problem and enabled deep network training!
+
+### 5. Practical Implications
+
+**For training deep neural networks:**
+
+1. **Skip connections are essential**
+   - Without them, deep plain networks fail completely (10% vs 74%)
+   - They're not optional for very deep architectures (>10 layers)
+
+2. **Configuration matters**
+   - Not all skip connection strategies are equal
+   - Longer, sparser skips (Config 2) >> shorter, frequent skips (Config 1)
+   - For this architecture: skipping 2-3 layers > skipping 1 layer
+
+3. **Gradient flow is predictive**
+   - Gradient norm (689.55 vs 20.77 vs 10.13) correlated with performance
+   - Monitoring gradient magnitudes during training can indicate whether skip connections are helping
+
+4. **Depth requires careful design**
+   - Simply adding layers without skip connections is counterproductive
+   - Each additional layer must have a gradient highway
+   - Modern architectures (ResNet, DenseNet, etc.) are built on this principle
+
+## Conclusions
+
+### Main Findings
+
+1. **Degradation Problem is Real:**
+   - 15-layer plain network: 10% accuracy (vs 74% for 5-layer)
+   - Adding layers WITHOUT skip connections destroyed performance
+   - This is an optimization failure, not overfitting
+
+2. **Skip Connections Enable Deep Learning:**
+   - Config 1 (short skips): 52.25% (+42.25% vs no skip)
+   - Config 2 (longer skips): 73.66% (+63.66% vs no skip, nearly matches 5-layer!)
+   - Provide gradient highways that combat vanishing gradients
+
+3. **Longer Skips are More Effective:**
+   - Config 2 outperformed Config 1 by 21.41%
+   - 68× stronger gradient flow vs 2× improvement
+   - Enabled immediate learning vs 7-epoch delay
+
+4. **Gradient Flow is Key:**
+   - Skip connections preserved gradient magnitudes (10.13 → 689.55)
+   - Strong gradients → fast learning → better convergence
+   - Quantitative evidence for why residual learning works
+
+### Theoretical Insights
+
+**Residual learning framework:**
+```
+Instead of learning H(x) directly, learn F(x) = H(x) - x
+Output: y = F(x) + x
+
+Advantages:
+- Identity mapping (F=0) is easier to learn than random initialization
+- Gradients flow through shortcut: ∂Loss/∂x includes identity term
+- Network can choose to use depth selectively
+```
+
+**Why deep networks with skip connections work:**
+1. **Optimization:** Gradient highways enable learning in early layers
+2. **Representation:** Depth allows complex hierarchical features
+3. **Flexibility:** Network can effectively reduce depth if not needed
+4. **Stability:** Skip connections prevent gradient explosion/vanishing
+
+### Comparison with Literature
+
+Our findings align with seminal ResNet paper (He et al., 2016):
+- Plain deep networks suffer degradation (our 15-layer: 10% vs their 56-layer: ~6% worse than 20-layer plain)
+- Skip connections solve the problem (our Config 2: 73.66% vs their ResNet-56: much better than plain)
+- Deeper skips can be beneficial (our Config 2 > Config 1)
+
+**Differences:**
+- ResNet uses batch normalization (we don't) - likely why we saw overfitting
+- ResNet has bottleneck blocks for efficiency
+- ResNet uses skip every 2-3 layers consistently (like our Config 2!)
+
+### Future Work
+
+To potentially beat the 5-layer baseline:
+
+1. **More training:**
+   - Increase to 20-30 epochs
+   - Config 2 was still improving (84.58% train → 73.66% test suggests more capacity)
+
+2. **Regularization:**
+   - Add batch normalization (helps both optimization and generalization)
+   - Add dropout (reduce 12.92% train-test gap)
+   - Implement weight decay (Part 3 extra credit)
+
+3. **Architecture improvements:**
+   - Add more skip connections (every 2 layers consistently)
+   - Try bottleneck blocks (1×1 → 3×3 → 1×1)
+   - Experiment with different skip strategies (DenseNet-style concatenation)
+
+4. **Hyperparameter tuning:**
+   - Learning rate schedule (reduce LR after plateau)
+   - Different learning rates for different layers
+   - Larger batch size with linear LR scaling
+
+5. **Data augmentation:**
+   - Random crops, flips, color jittering
+   - Mixup or CutMix augmentation
+   - Would improve generalization
+
+---
+
+*Part 3 Complete - Deep Networks with Skip Connections Implemented and Analyzed*  
+*Best Result: 73.66% test accuracy with longer skip connections (Config 2)*  
+*Key Achievement: Successfully trained 3× deeper network to competitive performance!*  
+*Document Last Updated: February 15, 2026*
