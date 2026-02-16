@@ -10,7 +10,7 @@
 
 ## Abstract
 
-This report investigates the training dynamics of convolutional neural networks on the CIFAR-10 image classification task, focusing on activation functions, batch size, momentum optimization, and skip connections for deep architectures. We demonstrate that proper activation function selection (Leaky ReLU + Tanh) improves test accuracy from 10% to 65.24% compared to sigmoid-based networks. Mini-batch gradient descent achieves 10.7× speedup with minimal accuracy trade-off. Momentum optimization (α=0.9) yields the best 5-layer performance at 74.02% test accuracy. For deep 15-layer networks, we observe severe degradation (10% accuracy) without skip connections, which is solved by residual connections achieving 73.66% test accuracy with longer skip configurations. Gradient flow analysis reveals that longer skip connections provide 68× stronger gradients compared to networks without skips, explaining their superior optimization behavior.
+This report investigates the training dynamics of convolutional neural networks on the Fashion-MNIST image classification task, focusing on activation functions, batch size, momentum optimization, and skip connections for deep architectures. We demonstrate that proper activation function selection (Leaky ReLU + Tanh) dramatically improves network training compared to sigmoid-based networks. Mini-batch gradient descent provides substantial speedup with acceptable accuracy trade-offs. Momentum optimization (α=0.95) yields the best 5-layer performance at 91.05% test accuracy. For deep 15-layer networks, skip connections provide meaningful improvements, with longer skip configurations (Config 2) achieving 90.35% test accuracy. Gradient flow analysis reveals that longer skip connections provide 65.6× stronger gradients compared to networks without skips, explaining their superior optimization behavior.
 
 ---
 
@@ -18,39 +18,41 @@ This report investigates the training dynamics of convolutional neural networks 
 
 ### 1.1 Dataset and Preprocessing
 
-We used the CIFAR-10 dataset containing 60,000 color images (32×32 pixels, 3 channels) across 10 object classes: airplane, automobile, bird, cat, deer, dog, frog, horse, ship, and truck. The dataset was split into 50,000 training images and 10,000 test images following the standard partitioning. All images were normalized using PyTorch's standard transform pipeline with pixel values scaled to [0, 1]. No validation set was used; hyperparameters were selected based on test set performance for pedagogical purposes only (not recommended for production systems).
+We used the Fashion-MNIST dataset containing 70,000 grayscale images (28×28 pixels, 1 channel) across 10 clothing categories: T-shirt/top, Trouser, Pullover, Dress, Coat, Sandal, Shirt, Sneaker, Bag, and Ankle boot. The dataset was split into 60,000 training images and 10,000 test images following the standard partitioning. All images were normalized using PyTorch's standard transform pipeline with pixel values centered at 0.5 (mean=0.5, std=0.5). No validation set was used; hyperparameters were selected based on test set performance for pedagogical purposes only (not recommended for production systems).
 
 ### 1.2 Model Architectures
 
 We implemented and evaluated six distinct architectures:
 
 **2-Layer Baseline Network:**
-- Architecture: Input (3072) → FC1 (256) + ReLU → FC2 (10) + Softmax
-- Parameters: 787,466
-- Activation: ReLU for hidden layer
+- Architecture: Input (784) → FC1 (256) + Sigmoid → FC2 (10) + Softmax
+- Parameters: 203,530
+- Activation: Sigmoid for hidden layer
 - Purpose: Establish baseline performance with shallow network
 
 **5-Layer CNN (Sigmoid):**
-- Block 1: Conv 3→16 (3×3, stride=1, pad=1) + Sigmoid + MaxPool (2×2)
+- Block 1: Conv 1→16 (3×3, stride=1, pad=1) + Sigmoid + MaxPool (2×2)
 - Block 2: Conv 16→32 (3×3, stride=1, pad=1) + Sigmoid + MaxPool (2×2)
-- Fully Connected: Flatten → FC 2048→256 + Sigmoid → FC 256→10
-- Parameters: 660,106
+- Block 3: Conv 32→64 (3×3, stride=1, pad=1) + Sigmoid + MaxPool (2×2)
+- Fully Connected: Flatten → FC 576→256 + Sigmoid → FC 256→10
+- Parameters: 169,610
 - Purpose: Demonstrate vanishing gradient problem
 
 **5-Layer CNN (Leaky ReLU + Tanh):**
-- Block 1: Conv 3→16 (3×3, stride=1, pad=1) + Leaky ReLU (α=0.01) + MaxPool (2×2)
-- Block 2: Conv 16→32 (3×3, stride=1, pad=1) + Leaky ReLU (α=0.01) + MaxPool (2×2)
-- Fully Connected: Flatten → FC 2048→256 + Tanh → FC 256→10
-- Parameters: 660,106
+- Block 1: Conv 1→16 (3×3, stride=1, pad=1) + Leaky ReLU (α=0.1) + MaxPool (2×2)
+- Block 2: Conv 16→32 (3×3, stride=1, pad=1) + Leaky ReLU (α=0.1) + MaxPool (2×2)
+- Block 3: Conv 32→64 (3×3, stride=1, pad=1) + Leaky ReLU (α=0.1) + MaxPool (2×2)
+- Fully Connected: Flatten → FC 576→256 + Tanh → FC 256→10
+- Parameters: 169,610
 - Purpose: Mitigate vanishing gradients with improved activations
 
 **15-Layer Deep CNN (No Skip):**
-- Block 1: Conv 3→16, 3× Conv 16→16, each with Leaky ReLU, MaxPool → 16×16×16
-- Block 2: Conv 16→32, 3× Conv 32→32, each with Leaky ReLU, MaxPool → 8×8×32
-- Block 3: Conv 32→64, 3× Conv 64→64, each with Leaky ReLU, MaxPool → 4×4×64
-- Fully Connected: Flatten → FC 1024→256 + Tanh → FC 256→256 + Tanh → FC 256→10
+- Block 1: Conv 1→16, 3× Conv 16→16, each with Leaky ReLU, MaxPool → 14×14×16
+- Block 2: Conv 16→32, 3× Conv 32→32, each with Leaky ReLU, MaxPool → 7×7×32
+- Block 3: Conv 32→64, 3× Conv 64→64, each with Leaky ReLU, MaxPool → 3×3×64
+- Fully Connected: Flatten → FC 576→256 + Tanh → FC 256→256 + Tanh → FC 256→10
 - Total: 12 convolutional layers + 3 fully connected = 15 parameterized layers
-- Parameters: 499,834
+- Parameters: 281,226
 - Purpose: Demonstrate degradation problem in plain deep networks
 
 **15-Layer CNN with Skip Connections (Config 1 - Short):**
@@ -59,7 +61,7 @@ We implemented and evaluated six distinct architectures:
   - Skip 1: conv1 output → conv2 output (y = x + f(x))
   - Skip 2: conv5 output → conv6 output (y = x + f(x))
   - Skip 3: conv9 output → conv10 output (y = x + f(x))
-- Parameters: 499,834 (identical to no-skip version)
+- Parameters: 281,226 (identical to no-skip version)
 - Purpose: Test frequent, short skip connections (ResNet-style)
 
 **15-Layer CNN with Skip Connections (Config 2 - Longer):**
@@ -68,7 +70,7 @@ We implemented and evaluated six distinct architectures:
   - Skip 1: conv1 output → conv3 output (length 2)
   - Skip 2: conv5 output → conv8 output (length 3)
   - Skip 3: conv9 output → conv12 output (length 3)
-- Parameters: 499,834
+- Parameters: 281,226
 - Purpose: Test sparser, longer skip connections
 
 All convolutional layers used 3×3 kernels with stride=1 and padding=1. All max pooling operations used 2×2 windows with stride=2.
@@ -145,19 +147,17 @@ Table 1 presents test accuracy for different architectures and activation functi
 
 | Model | Activation | Test Accuracy | Training Time |
 |-------|-----------|--------------|---------------|
-| 2-Layer Net | ReLU | 48.04% | 2.1 min |
-| 5-Layer CNN | Sigmoid | 10.00% | 29.9 min |
-| 5-Layer CNN | Leaky ReLU + Tanh | 65.24% | 29.9 min |
+| 2-Layer Net | Sigmoid | 81.37% | ~2 min |
+| 5-Layer CNN | Sigmoid | 82.62% | 39.3 min |
+| 5-Layer CNN | Leaky ReLU + Tanh | 90.42% | 40.9 min |
 
 **Table 1:** Test accuracy for baseline architectures. Both 5-layer CNNs used batch_size=1 and trained for 10 epochs.
 
-The 2-layer baseline achieved 48.04% accuracy. The 5-layer CNN with sigmoid activations achieved only 10.00% accuracy, equivalent to random guessing for 10 classes. Replacing sigmoid with Leaky ReLU (convolutional layers) and Tanh (fully connected layers) increased accuracy to 65.24%, a 55.24 percentage point improvement. Training time was identical (29.9 minutes) for both 5-layer variants, indicating that activation function choice affects optimization quality but not computational cost.
+The 2-layer baseline with sigmoid activation achieved 81.37% accuracy on Fashion-MNIST. The 5-layer CNN with sigmoid activations achieved 82.62% accuracy after experiencing slow initial learning (stuck at ~10% for 3 epochs), demonstrating the vanishing gradient problem. Replacing sigmoid with Leaky ReLU (convolutional layers) and Tanh (fully connected layers) increased accuracy to 90.42%, a 7.80 percentage point improvement. Training times were similar (39.3 vs 40.9 minutes) for both 5-layer variants with batch_size=1, confirming that the performance difference arises from optimization dynamics rather than computational cost.
 
-Figure 1 visualizes these results. The 5-layer sigmoid network performs at the random baseline level, while the Leaky ReLU + Tanh variant substantially outperforms both the 2-layer baseline and the sigmoid-based 5-layer network.
+Figure 1 would visualize these results. The 5-layer sigmoid network shows delayed learning with eventual moderate success (82.62%), while Leaky ReLU + Tanh enables immediate and superior learning (90.42%). Unlike CIFAR-10 where sigmoid completely fails, Fashion-MNIST's simpler patterns allow sigmoid to eventually optimize, though modern activations remain substantially better.
 
-![Architecture Comparison](report_figures/fig1_architecture_comparison.png)
-
-**Figure 1:** Test accuracy comparison across architectures and activation functions. The 5-layer CNN with sigmoid activations fails to learn (10% accuracy), while Leaky ReLU + Tanh enables effective learning (65.24%).
+**Note:** Figure needs regeneration with Fashion-MNIST data.
 
 ### 2.2 Batch Size Impact
 
@@ -165,40 +165,32 @@ Table 2 compares training efficiency for different batch sizes on the 5-layer CN
 
 | Batch Size | Test Accuracy | Training Time | Speedup |
 |-----------|--------------|---------------|---------|
-| 1 (SGD) | 65.24% | 29.9 min | 1.0× |
-| 32 (Mini-batch) | 58.86% | 2.8 min | 10.7× |
+| 1 (SGD) | 90.42% | 40.9 min | 1.0× |
+| 32 (Mini-batch) | 85.57% | 2.8 min | 14.6× |
 
-**Table 2:** Effect of batch size on test accuracy and training time. Both configurations used momentum=0.0 and trained for 10 epochs.
+**Table 2:** Effect of batch size on test accuracy and training time. Both configurations used momentum=0.0 and trained for 10 epochs on 5-layer CNN with Leaky ReLU+Tanh.
 
-Mini-batch SGD with batch_size=32 reduced training time from 29.9 minutes to 2.8 minutes, a 10.7× speedup. Test accuracy decreased from 65.24% to 58.86%, a 6.38 percentage point reduction. This represents a trade-off between computational efficiency and model performance.
+Mini-batch SGD with batch_size=32 reduced training time from 40.9 minutes to 2.8 minutes, a 14.6× speedup. Test accuracy decreased from 90.42% to 85.57%, a 4.85 percentage point reduction. This represents a favorable trade-off between computational efficiency and model performance.
 
-Figure 2 illustrates this trade-off, showing both the accuracy reduction and substantial training time savings from mini-batch processing.
+Figure 2 would illustrate this trade-off, showing both the accuracy reduction and substantial training time savings from mini-batch processing.
 
-![Batch Size Effect](report_figures/fig2_batch_size_effect.png)
-
-**Figure 2:** Impact of batch size on (left) test accuracy and (right) training time. Mini-batch SGD achieves 10.7× speedup with 6.38% accuracy drop.
-
-### 2.3 Momentum Optimization
-
-Table 3 shows test accuracy for different momentum coefficients on the 5-layer CNN with batch_size=32.
-
-| Momentum (α) | Test Accuracy | Improvement vs α=0 |
-|-------------|--------------|-------------------|
-| 0.0 | 58.86% | — |
-| 0.5 | 69.26% | +10.40% |
-| 0.9 | 74.02% | +15.16% |
-| 0.95 | 72.88% | +14.02% |
-| 0.99 | 71.40% | +12.54% |
+**Note:** Figure needs regeneration with Fashion-MNIST data.
+| 0.0 | 85.57% | — |
+| 0.5 | 88.88% | +3.31% |
+| 0.7 | 89.30% | +3.73% |
+| 0.9 | 90.88% | +5.31% |
+| 0.95 | 91.15% | +5.58% |
+| 0.99 | 11.71% | -73.86% |
 
 **Table 3:** Effect of momentum coefficient on test accuracy. All models used batch_size=32, lr=0.005, and trained for 10 epochs.
 
-Test accuracy increased monotonically from α=0.0 to α=0.9, achieving a maximum of 74.02% at α=0.9. Performance decreased for α=0.95 (72.88%) and α=0.99 (71.40%). The optimal momentum coefficient α=0.9 improved test accuracy by 15.16 percentage points compared to no momentum, and by 8.78 percentage points compared to the original batch_size=1 configuration (65.24%).
+Test accuracy increased monotonically from α=0.0 (85.57%) through α=0.95 (91.15%), achieving the best performance at α=0.95. However, α=0.99 experienced catastrophic failure, collapsing to 11.71% accuracy. This demonstrates the critical importance of momentum tuning: too low provides insufficient acceleration (α=0.5: 88.88%), while optimal values (α=0.95: 91.15%) provide maximum benefit, but excessive momentum (α=0.99: 11.71%) causes severe optimization instability and overshooting.
 
-Figure 3 illustrates the non-monotonic relationship between momentum and performance, with a clear optimum at α=0.9.
+The optimal momentum coefficient α=0.95 improved test accuracy by 5.58 percentage points compared to no momentum. The dramatic failure at α=0.99 validates theoretical predictions about momentum instability at extreme values.
 
-![Momentum Study](report_figures/fig3_momentum_study.png)
+Figure 3 would illustrate the non-monotonic relationship between momentum and performance, with steady improvement from 0.0 to 0.95, then catastrophic collapse at 0.99.
 
-**Figure 3:** Test accuracy as a function of momentum coefficient. Performance peaks at α=0.9 (74.02%) and degrades for higher values.
+**Note:** Figure needs regeneration with Fashion-MNIST data.
 
 ### 2.4 Deep Networks and the Degradation Problem
 
@@ -206,141 +198,142 @@ Table 4 presents results for 15-layer networks with and without skip connections
 
 | Model | Test Acc | Train Acc | Gradient Norm | Time |
 |-------|---------|-----------|---------------|------|
-| 5-Layer CNN (baseline) | 74.02% | — | — | 2.8 min |
-| 15-Layer No Skip | 10.00% | 9.82% | 10.13 | 4.1 min |
-| 15-Layer Skip Config 1 | 52.25% | 48.13% | 20.77 | 4.1 min |
-| 15-Layer Skip Config 2 | 73.66% | 84.58% | 689.55 | 4.1 min |
+| 5-Layer CNN (baseline) | 91.15% | — | — | 3.4 min |
+| 15-Layer No Skip | 86.02% | 85.64% | 10.62 | 4.9 min |
+| 15-Layer Skip Config 1 | 89.68% | 91.49% | 18.59 | 5.0 min |
+| 15-Layer Skip Config 2 | 90.35% | 93.49% | 696.42 | 4.9 min |
 
 **Table 4:** Performance of deep networks with varying skip connection strategies. All models used batch_size=32, momentum=0.9, and trained for 10 epochs. Gradient norm is averaged over epoch 1.
 
-The 15-layer network without skip connections achieved only 10.00% test accuracy, identical to the sigmoid-based 5-layer network and equivalent to random guessing. This represents a 64.02 percentage point drop compared to the 5-layer baseline (74.02%), despite having 3× the depth. Training accuracy (9.82%) was similarly low, indicating an optimization failure rather than overfitting.
+On Fashion-MNIST, the 15-layer network without skip connections achieved 86.02% test accuracy. While this is respectable performance, it falls 5.13 percentage points short of the 5-layer baseline (91.15%). Training accuracy (85.64%) was nearly identical to test accuracy, indicating the network successfully optimized but did not benefit from additional depth.
 
-Skip connection configuration 1 (three short skips of length 1) achieved 52.25% test accuracy, a 42.25 percentage point improvement over the no-skip variant but still 21.77 points below the 5-layer baseline.
+Skip connection configuration 1 (three short skips of length 1) achieved 89.68% test accuracy, a 3.66 percentage point improvement over the no-skip variant. This narrows the gap with the 5-layer baseline to just 1.47 points while using 3× the depth.
 
-Skip connection configuration 2 (three longer skips of lengths 2-3) achieved 73.66% test accuracy, only 0.36 percentage points below the 5-layer baseline. This configuration nearly matched shallow network performance while being 3× deeper. Training accuracy (84.58%) exceeded test accuracy by 10.92 points, indicating some overfitting.
+Skip connection configuration 2 (three longer skips of lengths 2-3) achieved 90.35% test accuracy, only 0.80 percentage points below the 5-layer baseline. This configuration nearly matched shallow network performance while being 3× deeper. Training accuracy (93.49%) exceeded test accuracy by 3.14 points, indicating mild overfitting.
 
-Average gradient L1-norm during the first epoch increased from 10.13 (no skip) to 20.77 (config 1, 2.05× improvement) to 689.55 (config 2, 68.09× improvement), demonstrating dramatically improved gradient flow with longer skip connections.
+Average gradient L1-norm during the first epoch increased from 10.62 (no skip) to 18.59 (config 1, 1.75× improvement) to 696.42 (config 2, 65.6× improvement), demonstrating dramatically improved gradient flow with longer skip connections.
 
-Figure 4 visualizes the degradation problem and its solution via skip connections.
+Figure 4 visualizes the degradation mitigation from skip connections.
 
-![Skip Connections Accuracy](report_figures/fig4_skip_connections_accuracy.png)
-
-**Figure 4:** Test accuracy for deep networks. The 15-layer plain network shows severe degradation (-64.02% vs 5-layer baseline). Skip connections recover performance, with longer skips (config 2) nearly matching the shallow baseline.
-
-Figure 5 quantifies gradient flow improvements from skip connections.
-
-![Gradient Flow](report_figures/fig5_gradient_flow.png)
-
-**Figure 5:** Average gradient L1-norm during epoch 1 (log scale). Longer skip connections (config 2) provide 68× stronger gradients compared to no skip connections, enabling effective optimization of deep networks.
+**Note:** Figures need to be regenerated with Fashion-MNIST data.
 
 ### 2.5 Progressive Performance Summary
 
-Figure 6 summarizes the progressive improvements achieved throughout the assignment.
+The progressive improvements across configurations show:
 
-![Progressive Improvements](report_figures/fig6_progressive_improvements.png)
+- 2-layer baseline (sigmoid): 81.37%
+- 5-layer sigmoid (batch_size=1): 82.62%
+- 5-layer Leaky ReLU + Tanh (batch_size=1): 90.42%
+- 5-layer Leaky ReLU + Tanh (batch_size=32, no momentum): 85.57%
+- 5-layer with momentum α=0.5: 88.88%
+- 5-layer with momentum α=0.7: 89.30%
+- 5-layer with momentum α=0.9: 90.88%
+- 5-layer with momentum α=0.95 (best): 91.15%
+- 5-layer with momentum α=0.99 (collapsed): 11.71%
+- 15-layer with skip Config 2: 90.35%
 
-**Figure 6:** Test accuracy improvements across all experimental configurations. Best performance (74.02%) achieved with 5-layer CNN using Leaky ReLU+Tanh, mini-batch SGD, and momentum α=0.9.
+Fashion-MNIST proves substantially more learnable than CIFAR-10, with even sigmoid-based networks achieving >80% accuracy (vs ~10% on CIFAR-10). The best overall performance (91.15%) was achieved with the 5-layer CNN using Leaky ReLU+Tanh, mini-batch SGD, and momentum α=0.95. The catastrophic failure at α=0.99 (11.71%) demonstrates the critical importance of momentum tuning. The 15-layer network with longer skip connections (90.35%) nearly matched the shallow baseline, demonstrating the feasibility of training deeper architectures with appropriate gradient flow pathways.
 
-The baseline 2-layer network achieved 48.04%. Adding depth without proper activation functions degraded performance to 10%. Correcting activations improved to 65.24%. Mini-batch processing slightly reduced accuracy to 58.86% but provided 10.7× speedup. Momentum optimization recovered accuracy to 74.02%, establishing the best overall performance. The 15-layer network with longer skip connections (73.66%) nearly matched this performance while demonstrating the feasibility of training much deeper architectures.
+**Note:** Figures showing progressive improvements need regeneration with actual Fashion-MNIST results.
 
 ---
 
 ## 3. Analysis
 
-### 3.1 Activation Functions and the Vanishing Gradient Problem
+### 3.1 Activation Functions and Gradient Flow
 
-The catastrophic failure of the sigmoid-based 5-layer CNN (10% accuracy) versus the success of the Leaky ReLU + Tanh version (65.24%) illustrates the vanishing gradient problem in backpropagation. The sigmoid function σ(z) = 1/(1+e^(-z)) has a derivative σ'(z) = σ(z)(1-σ(z)) that is maximized at 0.25 when σ(z)=0.5 and approaches zero for |z|>4. During backpropagation through L layers, gradients are scaled by the product ∏ᵢ σ'(zᵢ), which exponentially diminishes with depth when activations saturate.
+The comparison between sigmoid (82.62%) and Leaky ReLU + Tanh (90.42%) on Fashion-MNIST reveals important insights about the vanishing gradient problem's dataset dependence. Unlike CIFAR-10 where sigmoid-based networks completely fail (~10% accuracy), Fashion-MNIST's simpler grayscale patterns allow sigmoid to eventually learn after a slow start. The sigmoid network remained stuck at ~10% accuracy for the first 3 epochs before suddenly improving, demonstrating the optimization difficulty caused by vanishing gradients. However, once the network escaped this poor initialization, it continued improving steadily.
 
-Leaky ReLU addresses this by maintaining a constant gradient of 1.0 for positive inputs and a small negative slope (α=0.01) for negative inputs, preventing complete gradient death. This allows gradients to propagate through multiple layers without exponential decay. The Tanh function, while still sigmoid-shaped, has a steeper gradient (maximum derivative of 1.0 vs 0.25 for sigmoid) and zero-centered outputs, making it preferable to sigmoid for fully connected layers. The combination enables effective learning in moderately deep networks.
+Leaky ReLU maintains a constant gradient of 1.0 for positive inputs and a small negative slope (α=0.1) for negative inputs, preventing complete gradient death during backpropagation. This enabled immediate learning from epoch 1 (83% training accuracy) without the lengthy initialization phase. The Tanh function, while sigmoid-shaped, has a steeper maximum gradient (1.0 vs 0.25 for sigmoid) and zero-centered outputs.
 
-The identical training times (29.9 minutes) for both activation functions confirm that the performance difference arises from optimization dynamics rather than computational cost, as both functions have similar evaluation complexity.
+The 7.80 percentage point improvement (82.62% → 90.42%) with identical training time (39-40 minutes) confirms that the performance difference arises from optimization quality rather than computational cost. The combination of Leaky ReLU and Tanh enables effective learning across all architectures tested, as evidenced by strong performance throughout our experiments.
 
-### 3.2 Batch Size Trade-offs
+### 3.2 Batch Size and Training Efficiency
 
-Mini-batch SGD with batch_size=32 achieved a 10.7× training speedup at the cost of 6.38% accuracy reduction. This trade-off arises from two factors:
+Mini-batch SGD with batch_size=32 achieved a 14.6× training speedup (40.9 min → 2.8 min) at the cost of 4.85% accuracy reduction (90.42% → 85.57%). The efficiency gain from mini-batch processing comes from:
 
 **Computational efficiency:** Processing 32 samples simultaneously leverages GPU parallelism through vectorized operations, dramatically reducing wall-clock time per epoch compared to sequential single-sample updates.
 
-**Optimization quality:** Single-sample SGD provides noisy but unbiased gradient estimates with high variance, which can help escape local minima and explore the loss landscape more thoroughly. Mini-batch gradients are lower variance but may converge to worse local optima within a fixed time budget. Additionally, the effective number of parameter updates is reduced from 50,000 per epoch (batch_size=1) to 1,562 per epoch (batch_size=32), meaning the network has 32× fewer opportunities to adjust weights over 10 epochs.
+**Optimization dynamics:** Single-sample SGD provides noisy but unbiased gradient estimates with high variance, which can help escape local minima and explore the loss landscape more thoroughly. Mini-batch gradients are lower variance but may converge to worse local optima within a fixed epoch budget. The effective number of parameter updates is reduced from 60,000 per epoch (batch_size=1) to 1,875 per epoch (batch_size=32), meaning 32× fewer weight adjustment opportunities within 10 epochs.
 
-The 6.38% accuracy reduction is acceptable given the order-of-magnitude speedup, particularly for early-stage experimentation and hyperparameter search where fast iteration times are valuable. For production systems requiring maximum accuracy, longer training with smaller batches or learning rate schedules could recover the performance gap.
+The 4.85% accuracy reduction is acceptable given the order-of-magnitude speedup, particularly for early-stage experimentation where fast iteration times are valuable. Fashion-MNIST's higher signal-to-noise ratio compared to CIFAR-10 makes it more amenable to mini-batch optimization, explaining the strong 85.57% accuracy even without momentum.
 
 ### 3.3 Momentum Optimization Dynamics
 
-The non-monotonic relationship between momentum coefficient and test accuracy, with an optimum at α=0.9, reflects the delicate balance between acceleration and stability in SGD momentum.
+The Fashion-MNIST results reveal a clear non-monotonic relationship between momentum and performance, with steady improvement from α=0.0 (85.57%) through α=0.95 (91.15%), followed by catastrophic failure at α=0.99 (11.71%).
 
-**Too low momentum (α<0.9):** Insufficient velocity accumulation means gradients from previous iterations contribute minimally to current updates. The optimizer behaves similarly to vanilla SGD, exhibiting slow convergence and susceptibility to noisy gradients. The monotonic improvement from α=0.0 (58.86%) to α=0.9 (74.02%) demonstrates that accumulating gradient history accelerates convergence within our 10-epoch budget.
+**Low momentum (α=0.5):** Achieved 88.88% accuracy, a 3.31 percentage point improvement over no momentum. This demonstrates that even modest velocity accumulation helps acceleration, though not optimally.
 
-**Optimal momentum (α=0.9):** This value provides strong acceleration while maintaining sufficient damping to prevent oscillations. Classical momentum theory suggests optimal values in the range 0.9-0.95 for deep learning, consistent with our empirical findings. The 15.16% improvement over no momentum demonstrates the substantial benefit of velocity-based optimization.
+**Intermediate momentum (α=0.7, 0.9):** Showed progressive improvement (89.30%, 90.88%), indicating that higher momentum values provide stronger acceleration benefits within the 10-epoch training window.
 
-**Too high momentum (α>0.9):** Excessive momentum causes the optimizer to overshoot minima and oscillate, particularly near convergence. The velocity term vₜ becomes dominated by historical gradients rather than current gradient information, reducing responsiveness to the local loss topology. This explains the degradation at α=0.95 (72.88%) and α=0.99 (71.40%), where accumulated velocity prevents fine-grained convergence to good solutions within 10 epochs.
+**Optimal momentum (α=0.95):** Achieved the best performance at 91.15%, a 5.58 percentage point gain over no momentum. This value provides strong velocity accumulation while maintaining sufficient damping to prevent oscillations. The near-optimal range of 0.9-0.95 aligns with established deep learning practice.
 
-Our results align with established deep learning practice, which typically uses momentum values around 0.9. The sensitivity to this hyperparameter underscores the importance of systematic tuning for optimization algorithms.
+**Excessive momentum (α=0.99):** Experienced complete training collapse at 11.71% accuracy, equivalent to random guessing. This catastrophic failure occurs because the velocity term vₜ becomes dominated by historical gradients rather than current gradient information. With α=0.99, accumulated velocity from early training phases causes the optimizer to overshoot, oscillate wildly, and prevent any meaningful convergence. The network never escapes poor local configurations.
 
-### 3.4 The Degradation Problem in Deep Plain Networks
+This dramatic demonstration of momentum instability (α=0.95: 91.15% → α=0.99: 11.71%, a 79.44 percentage point drop) validates theoretical warnings about excessive momentum. The sensitivity to this hyperparameter underscores the importance of careful tuning for optimization algorithms.
 
-The 15-layer network without skip connections failing catastrophically (10% accuracy) while the 5-layer baseline succeeds (74.02%) exemplifies the degradation problem identified by He et al. (2016). This is **not overfitting**, as evidenced by the similar training accuracy (9.82%) and test accuracy (10.00%). Instead, it represents an optimization failure where the network cannot learn even the identity mapping that would allow it to match the shallower network's performance.
+### 3.4 Deep Networks Performance on Fashion-MNIST
 
-The gradient norm analysis provides mechanistic insight: the no-skip network exhibited an average L1-norm of only 10.13 during the first epoch, indicating extremely weak gradient signals reaching early layers. With 12 convolutional layers before the output, gradients must backpropagate through 12 weight matrices and nonlinear activations. Even with Leaky ReLU's improved gradient properties, repeated multiplication by weight matrices (which may have eigenvalues <1 during early training) and the occasional near-zero activation derivative causes gradients to decay exponentially with depth.
+Unlike the severe degradation observed on CIFAR-10, the 15-layer network without skip connections achieved reasonable performance on Fashion-MNIST (86.02% test accuracy). However, it still underperformed the 5-layer baseline by 5.03 percentage points despite being 3× deeper.
 
-Without strong gradient signals, early layers remain near their random initialization and cannot learn useful feature representations. Later layers then receive poor-quality features, preventing the entire network from optimizing effectively. This creates a vicious cycle where optimization stalls globally.
+The gradient norm analysis provides mechanistic insight: the no-skip network exhibited an average L1-norm of 10.62 during the first epoch. While sufficient for basic optimization (unlike the complete failure on CIFAR-10), these gradients were still suboptimal for efficiently training deep networks.
 
-The similar training time (4.1 minutes) across all 15-layer variants confirms this is not a capacity or computational issue, but purely an optimization challenge.
+Fashion-MNIST's simpler patterns (grayscale clothing items vs complex color objects) and higher inherent separability likely explain why plain deep networks can optimize at all. However, the fact that additional depth fails to improve performance indicates persistent gradient flow limitations even on easier datasets.
 
-### 3.5 Skip Connections Enable Deep Learning
+### 3.5 Skip Connections Improve Deep Network Optimization
 
-Skip connections solve the degradation problem by providing gradient highways that bypass multiple layers of nonlinear transformations. In residual learning, each block learns F(x) while the skip connection passes x unchanged:
+Skip connections improve gradient flow in deep networks by providing highways that bypass multiple layers of nonlinear transformations. In residual learning, each block learns F(x) while the skip connection passes x unchanged:
 
 y = F(x) + x
 
 During backpropagation:
 ∂L/∂x = ∂L/∂y · (∂F/∂x + I)
 
-The identity term (I) ensures gradients flow directly backward through the skip connection regardless of F's derivatives, preventing vanishing gradients. Empirically, this allows early layers to receive strong training signals even in very deep networks.
+The identity term (I) ensures gradients flow directly backward through the skip connection regardless of F's derivatives, strengthening gradient signals to early layers.
 
-**Configuration 1 vs Configuration 2:** The dramatic performance difference between short skips (config 1: 52.25%) and longer skips (config 2: 73.66%) provides insight into effective skip connection design:
+**Configuration 1 vs Configuration 2:** The performance difference between short skips (config 1: 89.68%) and longer skips (config 2: 90.35%) demonstrates optimal skip connection strategy:
 
-Config 1 used three length-1 skips, bypassing single convolutional layers. While this doubled gradient norms (20.77 vs 10.13), the network still struggled initially, remaining at ~10% accuracy for 7 epochs before a sudden breakthrough in epoch 8. This suggests that length-1 skips provide insufficient gradient flow for rapid optimization, requiring longer training to escape poor initializations.
+Config 1 used three length-1 skips, bypassing single convolutional layers. This improved gradient norms by 1.75× (18.59 vs 10.62) and increased test accuracy by 3.66 percentage points over the no-skip baseline. The improvement is meaningful but modest.
 
-Config 2 used three skips of length 2-3, bypassing multiple layers. This increased gradient norms 68-fold (689.55 vs 10.13) and enabled immediate learning from epoch 1 (29.29% accuracy), with smooth monotonic improvement thereafter. Longer skips create more direct pathways from loss to early layers, dramatically improving gradient magnitude and enabling stable optimization from initialization.
+Config 2 used three skips of length 2-3, bypassing multiple layers. This increased gradient norms 65.6× (696.42 vs 10.62) and achieved 90.35% test accuracy, nearly matching the 5-layer baseline (0.70% gap). Longer skips create more direct pathways from loss to early layers, dramatically improving gradient magnitude and enabling stable optimization.
 
-The near-match with the 5-layer baseline (73.66% vs 74.02%) demonstrates that skip connections successfully enable training of networks 3× deeper with minimal performance degradation. The slight 0.36% gap may be attributable to overfitting (10.92% train-test gap vs minimal gap for 5-layer) or suboptimal hyperparameters for the deeper architecture.
+The substantial gradient flow improvement (**65.6×**) directly correlates with better optimization, supporting the hypothesis that skip connections work by combating vanishing gradients rather than merely providing additional capacity.
 
-**Theoretical implications:** Our findings support the residual learning hypothesis: it is easier to optimize residual mappings F(x) = H(x) - x than direct mappings H(x), particularly when optimal transformations are closer to identity. When additional depth is not beneficial, the network can learn F(x) ≈ 0, effectively reducing depth dynamically. This flexibility allows very deep networks to avoid degradation while maintaining capacity to learn complex functions when needed.
+**Comparison with CIFAR-10:** On the harder CIFAR-10 dataset, skip connections were essential for any learning in deep networks (10% → 73.66%). On Fashion-MNIST, they provide incremental improvements (86.02% → 90.35%), suggesting their importance scales with task difficulty and optimization landscape complexity.
 
 ### 3.6 Limitations and Future Work
 
 Several limitations warrant discussion:
 
-**Limited training budget:** All experiments used only 10 epochs, which may be insufficient for deeper networks to converge fully. Config 1's breakthrough at epoch 8 suggests it might match or exceed config 2 with extended training.
+**Limited training budget:** All experiments used only 10 epochs, which may be insufficient for deeper networks to converge fully, particularly for skip connection configurations.
 
 **No validation set:** Hyperparameters were selected based on test set performance rather than a held-out validation set. This violates standard machine learning practice and may overestimate generalization to truly unseen data.
 
-**Single dataset:** Results are specific to CIFAR-10's 32×32 color images and 10 object classes. Generalization to other modalities (text, audio), resolutions, or task complexities remains untested.
+**Single dataset:** Results are specific to Fashion-MNIST's 28×28 grayscale clothing images. Fashion-MNIST is considerably easier than CIFAR-10, as evidenced by sigmoid achieving 82.62% (vs ~10% on CIFAR-10). Generalization to other modalities (RGB images, text, audio), resolutions, or task complexities remains untested. The reduced severity of optimization challenges on Fashion-MNIST may underestimate the importance of architectural innovations like skip connections.
 
-**Absent regularization:** No batch normalization, dropout, weight decay, or data augmentation was used. These techniques are standard in modern deep learning and would likely improve performance, particularly for the overfitting-prone 15-layer networks.
+**Absent regularization:** No batch normalization, dropout, weight decay, or data augmentation was used. These techniques are standard in modern deep learning and would likely improve performance.
 
 **Single random seed:** All experiments used stochastic initialization without fixing random seeds or running multiple trials. Performance metrics represent single runs and do not account for optimization variance.
 
-Future work should address these limitations through extended training, proper validation splits, regularization techniques, and multiple-trial statistics. Additionally, investigating deeper architectures (50+ layers) and more sophisticated skip connection patterns (e.g., DenseNet-style dense connections) would provide further insight into residual learning principles.
+Future work should address these limitations by using proper validation splits, regularization techniques, and multiple-trial statistics. Additionally, investigating deeper architectures (50+ layers) on more challenging datasets would provide clearer evidence of skip connection benefits. The dramatic difference between Fashion-MNIST and CIFAR-10 results suggests that architectural insights should be validated across multiple difficulty levels.
 
 ---
 
 ## 4. Conclusions
 
-This work systematically investigated training dynamics of convolutional neural networks on CIFAR-10, yielding four main findings:
+This work systematically investigated training dynamics of convolutional neural networks on Fashion-MNIST, with the following findings:
 
-**1. Activation functions critically affect optimization.** Sigmoid activations caused complete training failure (10% accuracy) in a 5-layer CNN due to vanishing gradients, while Leaky ReLU and Tanh enabled effective learning (65.24% accuracy) with identical architecture and computational cost.
+**1. Activation functions significantly affect optimization, with dataset-dependent severity.** Sigmoid activations demonstrated slow learning (stuck at ~10% for 3 epochs) before achieving 82.62% accuracy on Fashion-MNIST. Leaky ReLU + Tanh enabled immediate and superior learning at 90.42%, a 7.80 percentage point improvement with identical training time. Unlike CIFAR-10 where sigmoid completely fails, Fashion-MNIST's simpler patterns allow sigmoid to eventually optimize, though modern activations remain substantially better.
 
-**2. Mini-batch SGD enables efficient training.** Batch_size=32 achieved 10.7× speedup with acceptable accuracy trade-off (-6.38%), demonstrating the importance of hardware-aware optimization.
+**2. Mini-batch SGD enables highly efficient training.** Batch_size=32 achieved 14.6× speedup (40.9 min → 2.8 min) with acceptable 4.85% accuracy trade-off (90.42% → 85.57%), demonstrating the importance of hardware-aware optimization.
 
-**3. Momentum substantially improves convergence.** Optimal momentum (α=0.9) improved test accuracy by 15.16 percentage points compared to no momentum, achieving 74.02% accuracy on the 5-layer baseline.
+**3. Momentum substantially improves convergence with critical tuning requirements.** Optimal momentum (α=0.95) improved test accuracy from 85.57% to 91.15%, a 5.58 percentage point gain. However, excessive momentum (α=0.99) caused catastrophic training collapse to 11.71% accuracy, a 79.44 percentage point drop from optimal. This dramatic failure validates theoretical warnings about momentum instability and demonstrates that careful hyperparameter tuning is essential.
 
-**4. Skip connections solve the degradation problem.** Plain 15-layer networks failed catastrophically (10% accuracy), while identical networks with longer skip connections (length 2-3) achieved 73.66% accuracy, nearly matching the 5-layer baseline. Gradient flow analysis revealed that longer skips provide 68× stronger gradients, mechanistically explaining their superior optimization behavior.
+**4. Skip connections improve deep network optimization on easier datasets.** Plain 15-layer networks achieved modest 86.02% accuracy, underperforming the 5-layer baseline (91.15%) by 5.13 points despite 3× depth. Skip connections with longer spans (Config 2) nearly closed this gap at 90.35% test accuracy. Gradient flow analysis revealed that longer skips provide **65.6× stronger gradients** (696.42 vs 10.62), mechanistically explaining their superior optimization behavior.
 
-These findings confirm that depth alone does not guarantee better performance—careful design of activation functions, optimization algorithms, and gradient flow pathways is essential for training deep neural networks effectively. Skip connections are not merely an architectural enhancement but a fundamental requirement for optimization in very deep networks.
+**5. Task difficulty profoundly influences architectural requirements and optimization challenges.** Unlike CIFAR-10 where plain deep networks fail catastrophically and skip connections are essential, Fashion-MNIST allows plain deep networks to optimize reasonably (86.02%). Similarly, sigmoid fails completely on CIFAR-10 (~10%) but achieves 82.62% on Fashion-MNIST. This suggests architectural and algorithmic innovations provide greater benefit on harder tasks with more complex optimization landscapes.
 
-Our best model (5-layer CNN with Leaky ReLU+Tanh, batch_size=32, momentum α=0.9) achieved 74.02% test accuracy on CIFAR-10 within a 2.8-minute training budget, representing an appropriate balance between performance, efficiency, and architecture complexity for this task.
+Our best model (5-layer CNN with Leaky ReLU+Tanh, batch_size=32, momentum α=0.95) achieved **91.15% test accuracy** on Fashion-MNIST within a 3.4-minute training budget, representing an excellent balance between performance, efficiency, and architecture complexity for this task. The comprehensive experimental validation, including the dramatic momentum collapse at α=0.99, provides strong empirical evidence for established optimization principles in deep learning.
 
 ---
 
